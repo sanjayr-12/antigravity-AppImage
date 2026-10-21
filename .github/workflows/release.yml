@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
   group: release-appimage
@@ -27,12 +26,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Keep GitHub Actions alive
-        uses: gautamkrishnar/keepalive-workflow@v2
-        with:
-          time_elapsed: 45
-          commit_message: "chore: keep GitHub Actions alive [skip ci]"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LAST_COMMIT_DATE=$(git log -1 --format=%ct 2>/dev/null || echo "0")
+          NOW=$(date +%s)
+          DAYS_SINCE=$(( (NOW - LAST_COMMIT_DATE) / 86400 ))
+          echo "Days since last commit: $DAYS_SINCE"
+          if [ "$DAYS_SINCE" -ge 45 ]; then
+            echo "Repository approaching inactivity threshold. Pushing keepalive commit..."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keep GitHub Actions alive [skip ci]"
+            git push
+          else
+            echo "Repository active ($DAYS_SINCE days ago). No keepalive commit needed."
+          fi
 
       - name: Check for upstream update
         id: check
@@ -58,13 +71,6 @@ jobs:
             --url "${{ steps.check.outputs.download_url }}" \
             --arch "x86_64" \
             --dist-dir "dist"
-
-      - name: Upload Build Artifacts
-        if: steps.check.outputs.update_needed == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Antigravity-AppImage-${{ steps.check.outputs.version }}
-          path: dist/
 
       - name: Publish GitHub Release
         if: steps.check.outputs.update_needed == 'true'
