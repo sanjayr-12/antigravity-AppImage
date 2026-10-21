@@ -24,3 +24,7 @@ This AppImage supports delta updates. If you use **Gear Lever** or **AppImageUpd
 ## Disclaimer
 
 This is an unofficial, community-maintained project. It is not affiliated with, sponsored by, or endorsed by Google. All trademarks, logos, and binaries belong to Google LLC.
+
+## License
+
+The build scripts and workflows in this repository are licensed under the [MIT License](LICENSE).
