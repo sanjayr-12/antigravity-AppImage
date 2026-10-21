@@ -1,0 +1,112 @@
+name: Check & Release AppImage
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if release tag exists'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-appimage
+  cancel-in-progress: false
+
+jobs:
+  check-and-release:
+    name: Check & Release Antigravity AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Keep GitHub Actions alive
+        uses: gautamkrishnar/keepalive-workflow@v2
+        with:
+          time_elapsed: 45
+          commit_message: "chore: keep GitHub Actions alive [skip ci]"
+
+      - name: Check for upstream update
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_BUILD: ${{ inputs.force_build || 'false' }}
+        run: |
+          ./scripts/check-upstream.sh
+
+      - name: Install build dependencies
+        if: steps.check.outputs.update_needed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 squashfs-tools
+
+      - name: Build AppImage (x86_64)
+        if: steps.check.outputs.update_needed == 'true'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          ./scripts/build-appimage.sh \
+            --version "${{ steps.check.outputs.version }}" \
+            --url "${{ steps.check.outputs.download_url }}" \
+            --arch "x86_64" \
+            --dist-dir "dist"
+
+      - name: Upload Build Artifacts
+        if: steps.check.outputs.update_needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Antigravity-AppImage-${{ steps.check.outputs.version }}
+          path: dist/
+
+      - name: Publish GitHub Release
+        if: steps.check.outputs.update_needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.check.outputs.tag_name }}"
+          VERSION="${{ steps.check.outputs.version }}"
+          URL="${{ steps.check.outputs.download_url }}"
+
+          cat <<EOF > release_notes.md
+          ## Antigravity Desktop AppImage ($TAG)
+
+          Automated community AppImage build for official **Google Antigravity** v${VERSION}.
+
+          ### Download & Run
+          \`\`\`bash
+          chmod +x Antigravity-${VERSION}-x86_64.AppImage
+          ./Antigravity-${VERSION}-x86_64.AppImage
+          \`\`\`
+
+          ### Delta Updates
+          This AppImage supports delta updates using [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) or [Gear Lever](https://github.com/mijorus/gearlever).
+
+          ### Upstream Details
+          - **Official Portal:** https://antigravity.google
+          - **Source Archive:** [Antigravity.tar.gz](${URL})
+
+          ### Verification Checksums (SHA256)
+          \`\`\`
+          $(cat dist/SHA256SUMS.txt)
+          \`\`\`
+          EOF
+
+          gh release create "$TAG" dist/* \
+            --title "Antigravity v${VERSION}" \
+            --notes-file release_notes.md \
+            --latest
+
+      - name: Summary
+        run: |
+          echo "### Antigravity AppImage Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Upstream Version:** \`${{ steps.check.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** \`${{ steps.check.outputs.tag_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Update Needed:** \`${{ steps.check.outputs.update_needed }}\`" >> $GITHUB_STEP_SUMMARY

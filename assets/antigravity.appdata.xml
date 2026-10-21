@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.google.antigravity</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Proprietary</project_license>
+  <name>Antigravity</name>
+  <summary>Google Agentic Desktop Application</summary>
+  <description>
+    <p>
+      Antigravity is Google's agentic desktop platform and execution harness for advanced coding agents.
+    </p>
+  </description>
+  <launchable type="desktop-id">antigravity.desktop</launchable>
+  <url type="homepage">https://antigravity.google</url>
+  <provides>
+    <binary>antigravity</binary>
+  </provides>
+</component>

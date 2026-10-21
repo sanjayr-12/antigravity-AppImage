@@ -1,0 +1,15 @@
+# Build directories and AppImage artifacts
+dist/
+build/
+*.AppImage
+*.zsync
+*.tar.gz
+SHA256SUMS.txt
+
+# Node / JS
+node_modules/
+
+# OS / Temporary files
+.DS_Store
+*.swp
+*~

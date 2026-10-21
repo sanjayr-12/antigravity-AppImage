@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -e
+
+# Resolve the directory of the AppDir
+SELF="$(readlink -f "$0")"
+APPDIR="${APPDIR:-$(dirname "$SELF")}"
+export APPDIR
+
+# Export environment paths
+export PATH="${APPDIR}/usr/bin:${PATH}"
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${APPDIR}/usr/lib/antigravity:${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export XDG_DATA_DIRS="${APPDIR}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+# Electron / Chromium sandbox mitigation for environments where unprivileged user namespaces are restricted
+EXTRA_ARGS=()
+if [ "$(id -u)" = "0" ]; then
+    EXTRA_ARGS+=("--no-sandbox")
+elif [ -f /proc/sys/kernel/unprivileged_userns_clone ] && [ "$(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null)" = "0" ]; then
+    EXTRA_ARGS+=("--no-sandbox")
+elif [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = "1" ]; then
+    if [ -z "${ELECTRON_FORCE_SANDBOX:-}" ]; then
+        EXTRA_ARGS+=("--no-sandbox")
+    fi
+fi
+
+# Locate the Antigravity binary
+EXEC="${APPDIR}/usr/lib/antigravity/antigravity"
+if [ ! -x "$EXEC" ]; then
+    EXEC="${APPDIR}/usr/bin/antigravity"
+fi
+
+if [ ! -x "$EXEC" ]; then
+    echo "Error: Antigravity binary not found in AppDir: $EXEC" >&2
+    exit 1
+fi
+
+exec "$EXEC" "${EXTRA_ARGS[@]}" "$@"

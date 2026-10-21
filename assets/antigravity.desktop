@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Antigravity
+GenericName=Agentic Desktop Harness
+Comment=Antigravity - Google Agentic Desktop Application
+Exec=antigravity %U
+Icon=antigravity
+Type=Application
+StartupNotify=true
+Categories=Development;IDE;
+MimeType=x-scheme-handler/antigravity;
+Terminal=false
+StartupWMClass=antigravity
