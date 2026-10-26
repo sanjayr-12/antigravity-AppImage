@@ -6,7 +6,7 @@ Since Google only distributes Antigravity as a `.tar.gz`, this repository automa
 
 ## How to Run
 
-1. Go to **[Releases](../../releases)** and download the latest `.AppImage`.
+1. Go to **[Releases](../../releases)** and download the `.AppImage` matching your CPU architecture (`uname -m`): `x86_64` for Intel/AMD, `aarch64` for ARM64.
 2. Make it executable and run it:
 
 ```bash

@@ -74,6 +74,24 @@ jobs:
             --arch "x86_64" \
             --dist-dir "dist"
 
+      - name: Build AppImage (aarch64)
+        if: steps.check.outputs.update_needed == 'true' && steps.check.outputs.arm64_available == 'true'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          ./scripts/build-appimage.sh \
+            --version "${{ steps.check.outputs.version }}" \
+            --url "${{ steps.check.outputs.download_url_arm64 }}" \
+            --arch "aarch64" \
+            --dist-dir "dist"
+
+      - name: Regenerate combined SHA256 checksums
+        if: steps.check.outputs.update_needed == 'true'
+        run: |
+          cd dist
+          sha256sum *.AppImage *.zsync > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Publish GitHub Release
         if: steps.check.outputs.update_needed == 'true'
         env:
@@ -83,15 +101,22 @@ jobs:
           VERSION="${{ steps.check.outputs.version }}"
           URL="${{ steps.check.outputs.download_url }}"
 
+          if [ "${{ steps.check.outputs.arm64_available }}" = "true" ]; then
+            ARCHES="x86_64 and aarch64"
+          else
+            ARCHES="x86_64"
+          fi
+
           cat <<EOF > release_notes.md
           ## Antigravity Desktop AppImage ($TAG)
 
           Automated community AppImage build for official **Google Antigravity** v${VERSION}.
 
           ### Download & Run
+          Builds are provided for **${ARCHES}**; pick the one matching \`uname -m\`.
           \`\`\`bash
-          chmod +x Antigravity-${VERSION}-x86_64.AppImage
-          ./Antigravity-${VERSION}-x86_64.AppImage
+          chmod +x Antigravity-${VERSION}-<arch>.AppImage
+          ./Antigravity-${VERSION}-<arch>.AppImage
           \`\`\`
 
           ### Delta Updates
