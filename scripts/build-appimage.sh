@@ -250,7 +250,7 @@ fi
 
 # 5. Build the AppImage
 OUTPUT_APPIMAGE="${DIST_DIR}/Antigravity-${VERSION}-${APP_ARCH}.AppImage"
-rm -f "$OUTPUT_APPIMAGE" "${OUTPUT_APPIMAGE}.zsync"
+rm -f "$OUTPUT_APPIMAGE" "${OUTPUT_APPIMAGE}.zsync" "$(basename "$OUTPUT_APPIMAGE").zsync"
 
 UPDATE_INFO_ARGS=()
 if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
@@ -275,22 +275,34 @@ fi
 # appimagetool only writes a .zsync when zsyncmake is available. Without it the
 # update information is embedded but no delta-update file is produced, so
 # AppImageUpdate / Gear Lever silently fail for every user.
-if [[ ${#UPDATE_INFO_ARGS[@]} -gt 0 && ! -f "${OUTPUT_APPIMAGE}.zsync" ]]; then
-    echo "Error: update information was embedded but no .zsync was generated." >&2
-    echo "       Install the 'zsync' package (provides zsyncmake) and rebuild." >&2
-    exit 1
+#
+# It also writes the .zsync into the current working directory (named after the
+# output basename) rather than next to the target, so move it into DIST_DIR to
+# keep the release assets together.
+ZSYNC_PATH="${OUTPUT_APPIMAGE}.zsync"
+if [[ ${#UPDATE_INFO_ARGS[@]} -gt 0 ]]; then
+    STRAY_ZSYNC="$(basename "$OUTPUT_APPIMAGE").zsync"
+    if [[ ! -f "$ZSYNC_PATH" && -f "$STRAY_ZSYNC" ]]; then
+        mv "$STRAY_ZSYNC" "$ZSYNC_PATH"
+    fi
+    if [[ ! -f "$ZSYNC_PATH" ]]; then
+        echo "Error: update information was embedded but no .zsync was generated." >&2
+        echo "       Install the 'zsync' package (provides zsyncmake) and rebuild." >&2
+        exit 1
+    fi
 fi
 
 echo "==> AppImage built successfully: $OUTPUT_APPIMAGE"
 
 # 6. Generate SHA256 checksums
 echo "==> Generating SHA256 checksums..."
-cd "$DIST_DIR"
-sha256sum "$(basename "$OUTPUT_APPIMAGE")" > "SHA256SUMS.txt"
-if [[ -f "${OUTPUT_APPIMAGE}.zsync" ]]; then
-    sha256sum "$(basename "${OUTPUT_APPIMAGE}.zsync")" >> "SHA256SUMS.txt"
+SUMS_FILE="${DIST_DIR}/SHA256SUMS.txt"
+: > "$SUMS_FILE"
+( cd "$DIST_DIR" && sha256sum "$(basename "$OUTPUT_APPIMAGE")" ) >> "$SUMS_FILE"
+if [[ -f "$ZSYNC_PATH" ]]; then
+    ( cd "$DIST_DIR" && sha256sum "$(basename "$ZSYNC_PATH")" ) >> "$SUMS_FILE"
 fi
-cat "SHA256SUMS.txt"
+cat "$SUMS_FILE"
 
 # 7. Cleanup unless requested
 if [[ "$KEEP_BUILD" != "true" ]]; then
