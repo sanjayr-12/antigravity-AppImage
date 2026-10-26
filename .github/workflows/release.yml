@@ -59,7 +59,9 @@ jobs:
         if: steps.check.outputs.update_needed == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfuse2 squashfs-tools
+          # zsync provides zsyncmake, which appimagetool requires to emit the
+          # .zsync file that the embedded update information points at.
+          sudo apt-get install -y libfuse2 squashfs-tools zsync
 
       - name: Build AppImage (x86_64)
         if: steps.check.outputs.update_needed == 'true'
