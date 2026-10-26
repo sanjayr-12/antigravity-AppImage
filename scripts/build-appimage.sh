@@ -272,6 +272,15 @@ else
     "$APPIMAGETOOL" "${UPDATE_INFO_ARGS[@]}" "$APPDIR" "$OUTPUT_APPIMAGE"
 fi
 
+# appimagetool only writes a .zsync when zsyncmake is available. Without it the
+# update information is embedded but no delta-update file is produced, so
+# AppImageUpdate / Gear Lever silently fail for every user.
+if [[ ${#UPDATE_INFO_ARGS[@]} -gt 0 && ! -f "${OUTPUT_APPIMAGE}.zsync" ]]; then
+    echo "Error: update information was embedded but no .zsync was generated." >&2
+    echo "       Install the 'zsync' package (provides zsyncmake) and rebuild." >&2
+    exit 1
+fi
+
 echo "==> AppImage built successfully: $OUTPUT_APPIMAGE"
 
 # 6. Generate SHA256 checksums
