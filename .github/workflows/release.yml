@@ -11,6 +11,16 @@ on:
         required: false
         type: boolean
         default: false
+      custom_version:
+        description: 'Specific version to build (e.g. 2.27.0). Leave empty for auto-detect.'
+        required: false
+        type: string
+        default: ''
+      custom_execution_id:
+        description: 'Specific execution_id (e.g. 4933976025071616). Required if custom_version is set.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -52,6 +62,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORCE_BUILD: ${{ inputs.force_build || 'false' }}
+          CUSTOM_VERSION: ${{ inputs.custom_version || '' }}
+          CUSTOM_EXECUTION_ID: ${{ inputs.custom_execution_id || '' }}
         run: |
           ./scripts/check-upstream.sh
 
@@ -89,7 +101,12 @@ jobs:
         if: steps.check.outputs.update_needed == 'true'
         run: |
           cd dist
-          sha256sum *.AppImage *.zsync > SHA256SUMS.txt
+          rm -f SHA256SUMS.txt
+          shopt -s nullglob
+          FILES=(*.AppImage *.zsync)
+          if [ ${#FILES[@]} -gt 0 ]; then
+            sha256sum "${FILES[@]}" > SHA256SUMS.txt
+          fi
           cat SHA256SUMS.txt
 
       - name: Publish GitHub Release
@@ -132,14 +149,25 @@ jobs:
           \`\`\`
           EOF
 
-          gh release create "$TAG" dist/* \
-            --title "Antigravity v${VERSION}" \
-            --notes-file release_notes.md \
-            --latest
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Updating release notes and uploading assets..."
+            gh release edit "$TAG" \
+              --title "Antigravity v${VERSION}" \
+              --notes-file release_notes.md \
+              --latest
+            gh release upload "$TAG" dist/* --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" dist/* \
+              --title "Antigravity v${VERSION}" \
+              --notes-file release_notes.md \
+              --latest
+          fi
 
       - name: Summary
         run: |
           echo "### Antigravity AppImage Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Upstream Version:** \`${{ steps.check.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag:** \`${{ steps.check.outputs.tag_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **ARM64 Available:** \`${{ steps.check.outputs.arm64_available }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Update Needed:** \`${{ steps.check.outputs.update_needed }}\`" >> $GITHUB_STEP_SUMMARY

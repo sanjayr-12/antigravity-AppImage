@@ -7,16 +7,21 @@ set -euo pipefail
 
 API_URL="https://antigravity-hub-auto-updater-974169037036.us-central1.run.app/releases"
 
-echo "==> Fetching latest release info from Antigravity auto-updater..."
-RELEASES_JSON=$(curl -fsSL --retry 3 --connect-timeout 10 "$API_URL")
+if [[ -n "${CUSTOM_VERSION:-}" && -n "${CUSTOM_EXECUTION_ID:-}" ]]; then
+    echo "==> Using manually specified upstream version: ${CUSTOM_VERSION} (execution_id: ${CUSTOM_EXECUTION_ID})"
+    LATEST_VERSION="${CUSTOM_VERSION}"
+    EXECUTION_ID="${CUSTOM_EXECUTION_ID}"
+else
+    echo "==> Fetching latest release info from Antigravity auto-updater..."
+    RELEASES_JSON=$(curl -fsSL --retry 3 --connect-timeout 10 "$API_URL")
 
-if [[ -z "$RELEASES_JSON" || "$RELEASES_JSON" == "[]" ]]; then
-    echo "Error: Failed to fetch releases or received empty response from $API_URL" >&2
-    exit 1
-fi
+    if [[ -z "$RELEASES_JSON" || "$RELEASES_JSON" == "[]" ]]; then
+        echo "Error: Failed to fetch releases or received empty response from $API_URL" >&2
+        exit 1
+    fi
 
-# Extract version and execution_id from the first (latest) release entry using python
-read -r LATEST_VERSION EXECUTION_ID < <(python3 -c '
+    # Extract version and execution_id from the first (latest) release entry using python
+    read -r LATEST_VERSION EXECUTION_ID < <(python3 -c '
 import sys, json
 data = json.loads(sys.stdin.read())
 if not data:
@@ -27,9 +32,10 @@ exec_id = str(latest.get("execution_id", "")).strip().rstrip("/")
 print(f"{version} {exec_id}")
 ' <<< "$RELEASES_JSON")
 
-if [[ -z "$LATEST_VERSION" || -z "$EXECUTION_ID" ]]; then
-    echo "Error: Unable to parse version or execution_id from upstream API." >&2
-    exit 1
+    if [[ -z "$LATEST_VERSION" || -z "$EXECUTION_ID" ]]; then
+        echo "Error: Unable to parse version or execution_id from upstream API." >&2
+        exit 1
+    fi
 fi
 
 echo "==> Upstream latest version: $LATEST_VERSION (execution_id: $EXECUTION_ID)"
@@ -58,6 +64,9 @@ REPO="${GITHUB_REPOSITORY:-}"
 
 if [[ -n "${FORCE_BUILD:-}" && "${FORCE_BUILD}" == "true" ]]; then
     echo "==> FORCE_BUILD is set to true. Forcing update."
+    UPDATE_NEEDED="true"
+elif [[ -n "${CUSTOM_VERSION:-}" ]]; then
+    echo "==> CUSTOM_VERSION is set. Forcing update."
     UPDATE_NEEDED="true"
 elif [[ -n "$REPO" ]]; then
     echo "==> Checking if release tag '$TAG_NAME' already exists in $REPO..."
