@@ -86,6 +86,22 @@ case "$ARCH" in
         ;;
 esac
 
+# appimagetool packages for the architecture selected by the ARCH environment
+# variable, but the tool itself has to run on the build host. Keep the two
+# separate so an x86_64 runner can produce an aarch64 AppImage.
+case "$(uname -m)" in
+    x86_64|amd64)
+        TOOL_ARCH="x86_64"
+        ;;
+    aarch64|arm64)
+        TOOL_ARCH="aarch64"
+        ;;
+    *)
+        echo "Error: Unsupported build host architecture '$(uname -m)'." >&2
+        exit 1
+        ;;
+esac
+
 # 1. Resolve source tarball
 TAR_PATH=""
 if [[ -n "$TAR_FILE" ]]; then
@@ -242,8 +258,8 @@ APPIMAGETOOL="${BUILD_DIR}/appimagetool"
 if command -v appimagetool >/dev/null 2>&1; then
     APPIMAGETOOL="$(command -v appimagetool)"
 elif [[ ! -x "$APPIMAGETOOL" ]]; then
-    echo "==> Downloading appimagetool for ${APP_ARCH}..."
-    TOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${APP_ARCH}.AppImage"
+    echo "==> Downloading appimagetool for build host ${TOOL_ARCH} (target arch: ${APP_ARCH})..."
+    TOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${TOOL_ARCH}.AppImage"
     curl -fsSL --retry 3 -o "$APPIMAGETOOL" "$TOOL_URL"
     chmod +x "$APPIMAGETOOL"
 fi

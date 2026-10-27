@@ -6,7 +6,6 @@
 set -euo pipefail
 
 API_URL="https://antigravity-hub-auto-updater-974169037036.us-central1.run.app/releases"
-ARCH="${1:-x64}" # x64 or arm64
 
 echo "==> Fetching latest release info from Antigravity auto-updater..."
 RELEASES_JSON=$(curl -fsSL --retry 3 --connect-timeout 10 "$API_URL")
@@ -35,16 +34,23 @@ fi
 
 echo "==> Upstream latest version: $LATEST_VERSION (execution_id: $EXECUTION_ID)"
 
-# Map arch to upstream directory name
-UPSTREAM_ARCH="linux-x64"
-if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" || "$ARCH" == "linux-arm" ]]; then
-    UPSTREAM_ARCH="linux-arm"
-fi
-
-DOWNLOAD_URL="https://storage.googleapis.com/antigravity-public/antigravity-hub/${LATEST_VERSION}-${EXECUTION_ID}/${UPSTREAM_ARCH}/Antigravity.tar.gz"
+# Upstream publishes one archive per architecture. The linux-arm one is probed
+# instead of assumed, so a release that only ships linux-x64 still succeeds.
+STORAGE_BASE="https://storage.googleapis.com/antigravity-public/antigravity-hub/${LATEST_VERSION}-${EXECUTION_ID}"
+DOWNLOAD_URL="${STORAGE_BASE}/linux-x64/Antigravity.tar.gz"
+DOWNLOAD_URL_ARM64="${STORAGE_BASE}/linux-arm/Antigravity.tar.gz"
 TAG_NAME="v${LATEST_VERSION}"
 
-echo "==> Upstream download URL: $DOWNLOAD_URL"
+echo "==> Upstream x86_64 download URL: $DOWNLOAD_URL"
+echo "==> Upstream aarch64 download URL: $DOWNLOAD_URL_ARM64"
+
+ARM64_AVAILABLE="false"
+if curl -fsI --retry 2 --connect-timeout 10 -o /dev/null "$DOWNLOAD_URL_ARM64"; then
+    ARM64_AVAILABLE="true"
+    echo "==> aarch64 archive found."
+else
+    echo "==> aarch64 archive not found for this release; the aarch64 build will be skipped." >&2
+fi
 
 # Check if release already exists in GitHub repository
 UPDATE_NEEDED="true"
@@ -85,15 +91,18 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     echo "version=${LATEST_VERSION}" >> "$GITHUB_OUTPUT"
     echo "execution_id=${EXECUTION_ID}" >> "$GITHUB_OUTPUT"
     echo "download_url=${DOWNLOAD_URL}" >> "$GITHUB_OUTPUT"
+    echo "download_url_arm64=${DOWNLOAD_URL_ARM64}" >> "$GITHUB_OUTPUT"
+    echo "arm64_available=${ARM64_AVAILABLE}" >> "$GITHUB_OUTPUT"
     echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
     echo "update_needed=${UPDATE_NEEDED}" >> "$GITHUB_OUTPUT"
 fi
 
 echo "----------------------------------------"
 echo "Summary:"
-echo "  Version:       $LATEST_VERSION"
-echo "  Execution ID:  $EXECUTION_ID"
-echo "  Tag:           $TAG_NAME"
-echo "  Download URL:  $DOWNLOAD_URL"
-echo "  Update Needed: $UPDATE_NEEDED"
+echo "  Version:        $LATEST_VERSION"
+echo "  Execution ID:   $EXECUTION_ID"
+echo "  Tag:            $TAG_NAME"
+echo "  Download URL:   $DOWNLOAD_URL"
+echo "  ARM64 URL:      $DOWNLOAD_URL_ARM64 ($ARM64_AVAILABLE)"
+echo "  Update Needed:  $UPDATE_NEEDED"
 echo "----------------------------------------"
